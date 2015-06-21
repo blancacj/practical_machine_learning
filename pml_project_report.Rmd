@@ -1,0 +1,84 @@
+---
+title: "pml_project"
+output: html_document
+---
+This report is one of the asignments for the practical machine learning course. The purpose of this project is to classify the type of performances. The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+#### Load in data 
+```{r,results="hide"}
+library(caret)
+library(rattle)
+library(randomForest)
+set.seed(30)
+training <- read.csv('pml-training.csv')
+testing <- read.csv('pml-testing.csv')
+str(training)
+str(testing)
+```
+#### Partioning the training set into two
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.75, list=FALSE)
+Training_train <- training[inTrain, ]
+Training_test <- training[-inTrain, ]
+dim(Training_train)
+dim(Training_test)
+```
+#### Preprocessing data
+The data set contains 160 variables, and some of the variables might be very similar for all the obervations which do not contribute to the classification of classes, so we can get rid of those variables with near zero variation. 
+
+```{r}
+name_list<-names(Training_test)
+NZV_data <- nearZeroVar(Training_test, saveMetrics=TRUE)
+selected_variable_name<-name_list[NZV_data$nzv==FALSE]
+Training_test_new <- Training_test[selected_variable_name]
+dim(Training_test_new)
+Training_train_new<-Training_train[selected_variable_name]
+dim(Training_train_new)
+selected_variable_name_test<-c(selected_variable_name[1:ncol(Training_train_new)-1],"problem_id")
+testing_new<-testing[selected_variable_name_test]
+dim(testing_new)
+```
+
+The data set contains many NAs. For those variable with more than 80% of theirs values are NAs, I will remove them. 
+```{r}
+flag_1<-function (X){
+    sum(is.na(X))/length(X)>0.8   
+}
+name_list_NA<-data.frame(apply(Training_test_new,2,flag_1))
+names(name_list_NA)="flag"
+Training_train_new2<-Training_train_new[selected_variable_name[!name_list_NA]]
+Training_test_new2<-Training_test_new[selected_variable_name[!name_list_NA]]
+testing_new2<-testing_new[selected_variable_name_test[!name_list_NA]]
+# remove the first columns
+Training_train_new2<-Training_train_new2[,-1]
+Training_test_new2<-Training_test_new2[,-1]
+testing_new2<-testing_new2[,-1]
+dim(Training_train_new2)
+dim(Training_test_new2)
+dim(testing_new2)
+```
+#### Modeling and validating
+```{r}
+modFit<-train(classe~.,method="rpart",data=Training_train_new2)
+print(modFit$finalModel)
+fancyRpartPlot(modFit$finalModel)
+
+##
+modFit1<-train(classe~.,method="rf",data=Training_train_new2,prox=TRUE)
+modFit1
+predict_rf<-predict(modFit1,Training_test_new2)
+confusionMatrix(Training_test_new2$classe,predict_rf)
+```
+
+### Applying the model to the new testing data set.
+```{r}
+predict_new<-predict(modFit1,testing_new2)
+predict_new
+```
+
+
+
+
+
+
+
